@@ -3,9 +3,13 @@ Basic TCP and UDP networking with hosts and clients
 
 # Compile
 make tcphost
+
 make tcpclient
+
 make udphost
+
 make udpclient
+
 
 # Copyrights
 Used IBM i 7.4.0 Socket programming example as a starting point
