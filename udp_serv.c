@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <time.h>
 
@@ -50,12 +51,13 @@ int main(void)
     bool close_conn=true;
     time_t fps;
     struct sockaddr_in  addr;
+    struct sockaddr_in  peer_addr;
     struct host_info   *host;
     char buffer[BUFFER_SIZE];
     char proc_buffer[BUFFER_SIZE];
     //char send_buffer[BUFFER_SIZE];
     ssize_t recsize;
-    socklen_t fromlen = sizeof(addr);
+    socklen_t fromlen = sizeof(peer_addr);
 
     // configuration
 
@@ -103,7 +105,7 @@ int main(void)
         memset(buffer,0,sizeof(buffer));
         memset(proc_buffer,0,sizeof(proc_buffer));
         //memset(send_buffer,0,sizeof(send_buffer));
-        recsize = recvfrom(listen_sd,buffer,sizeof(buffer),0,(struct sockaddr*)&addr, &fromlen);
+        recsize = recvfrom(listen_sd,buffer,sizeof(buffer),0,(struct sockaddr*)&peer_addr, &fromlen);
         if(recsize < 0)
         {
             printf("recv() function failed... exiting");
@@ -114,7 +116,8 @@ int main(void)
         //strncat(send_buffer,proc_buffer,BUFFER_SIZE_SMALL);
 
         // Buffer input processing ahead
-        printf("> %s using %ld bytes\n",buffer, recsize);
+        printf("> %s using %ld bytes",buffer, recsize);
+        printf(" from %s : %d\n",inet_ntoa(peer_addr.sin_addr),ntohs(peer_addr.sin_port));
         fps=wait_nano(FRAME_DURATION);
         printf("time passed: %jd\n",fps);
 
