@@ -17,13 +17,27 @@
 #define HOST_INFO_HOSTNAME_MAX 36
 #define MAX_CONNECTIONS 5 // for start
 #define FRAME_DURATION 16000000 // one FPS
+#define USERNAME_MAX 8
+#define MAGIC_NUM 32
 
-//          structs
+//          structs and globals
 struct host_info
 {
     uint16_t udp_port;
     char hostip[HOST_INFO_HOSTNAME_MAX];
 };
+
+struct dgram_send
+{
+    uint8_t magic_number;
+    char username[8];
+    uint16_t y;
+    uint16_t x;
+    uint16_t dir; 
+};
+
+time_t sendtime;
+ssize_t dgram_p;
 
 //          additional header files
 #include "src/client_conf_udp.h"
@@ -35,15 +49,24 @@ time_t wait_sec(long sec);
 int main(void)
 {
     const char *conf_file="config/connudp.ini";
+    char *debug_name="debug";
     int rc, udp_sock;
+    int counter=0;
+    char *debug_buf="abcd";
     bool close_conn=true;
-    char username[8];
-    char buffer[256];
+    bool debug=false;
+    char buf_username[8];
+    //char buffer[256];
     struct host_info    *host;
     struct sockaddr_in   addr;
+    struct dgram_send   *send;
     //ssize_t recsize;
-    time_t ret_time;
-
+    send=malloc(sizeof(struct dgram_send));
+    if(send == NULL)
+    {
+        perror("memory allocation failed");
+        exit(-1);
+    }
     host=malloc(sizeof(struct host_info));
     if(host == NULL)
     {
@@ -63,34 +86,65 @@ int main(void)
     addr.sin_addr.s_addr    = inet_addr(host->hostip);
     addr.sin_port           = htons(host->udp_port);
 
-    udp_sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP); //UDP
+    udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); //UDP
     if (udp_sock < 0)
     {
         perror("socket function failed");
         exit(-1);
     }
+    memset(send,0,sizeof(struct dgram_send));
     printf("Welcome to the udp_client test\n");
     printf("Provide username... \n >");
-    fgets(username,8,stdin);
-    printf("Go: %s\n",username);
-    strncpy(buffer,username,200);
+    fgets(buf_username,USERNAME_MAX,stdin);
+    printf("Go: %s\n",buf_username);
+    rc=strncmp(buf_username,debug_name,(USERNAME_MAX-3));
+    if(rc==0)
+    {
+        printf("Debug mode on\n");
+        debug=true;
+    }
+    strncpy(send->username,buf_username,USERNAME_MAX);
     close_conn=false;
     do
     {
-        rc = sendto(udp_sock, buffer, strlen(buffer), 0, (struct sockaddr*)&addr, sizeof(addr));
-        if (rc < 0)
+        if(debug)
         {
-            printf("failed to send data... closing udp_sock\n");
-            close_conn=true;
+            counter++;
+            dgram_p = sendto(udp_sock, debug_buf, sizeof(char), 0, (struct sockaddr*)&addr, sizeof(addr));
+            if (dgram_p < 0)
+            {
+                printf("failed to send data... closing udp_sock\n");
+                close_conn=true;
+            }
+            printf("[Debug]Sent %zu bytes / ASCII: %s\n",dgram_p,debug_buf);
+            sendtime=wait_sec(3);
         }
         else
         {
-            printf("Sent!\n");
+            counter++;
+            send->magic_number  =MAGIC_NUM;
+            send->y             =counter;
+            send->x             =counter*2;
+            send->dir           =counter*4;
+            dgram_p = sendto(udp_sock, send, sizeof(*send), 0, (struct sockaddr*)&addr, sizeof(addr));
+            if (dgram_p < 0)
+            {
+                printf("failed to send data... closing udp_sock\n");
+                close_conn=true;
+            }
+            else
+            {
+                printf("Sent %zu bytes!\n",dgram_p);
+                printf("%d / %d / % d\n",send->y,send->x,send->dir);
+                memset(send,0,sizeof(struct dgram_send));
+                strncpy(send->username,buf_username,USERNAME_MAX);
+                sendtime=wait_sec(2);
+            }
         }
-        ret_time=wait_sec(2);
-        printf("waited for %ld\n",ret_time);
     }
     while(close_conn==false); 
     close(udp_sock); // close the socket
+    free(host);
+    free(send);
     return 0;
 }
